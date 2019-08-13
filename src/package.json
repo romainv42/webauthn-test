@@ -1,0 +1,27 @@
+{
+  "name": "webauthn",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@fidm/x509": "^1.2.1",
+    "base64url": "^3.0.1",
+    "cbor": "^4.2.1",
+    "fastify": "^2.7.1",
+    "fastify-jwt": "^1.0.0",
+    "fastify-plugin": "^1.6.0",
+    "fastify-static": "^2.5.0",
+    "iso-3166-1": "^1.1.0",
+    "mongodb": "^3.3.0-beta2"
+  },
+  "devDependencies": {
+    "nodemon": "^1.19.1"
+  }
+}

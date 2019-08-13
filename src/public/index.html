@@ -1,0 +1,160 @@
+<html>
+
+<head>
+  <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/milligram/1.3.0/milligram.css">
+  <script type="text/javascript">
+    /**
+     * Converts PublicKeyCredential into serialised JSON
+     * @param  {Object} pubKeyCred
+     * @return {Object}            - JSON encoded publicKeyCredential
+     */
+    var publicKeyCredentialToJSON = (pubKeyCred) => {
+      if (pubKeyCred instanceof Array) {
+        let arr = [];
+        for (let i of pubKeyCred)
+          arr.push(publicKeyCredentialToJSON(i));
+
+        return arr
+      }
+
+      if (pubKeyCred instanceof ArrayBuffer) {
+        return btoa(String.fromCharCode(...new Uint8Array(pubKeyCred)));
+      }
+
+      if (pubKeyCred instanceof Object) {
+        let obj = {};
+
+        for (let key in pubKeyCred) {
+          obj[key] = publicKeyCredentialToJSON(pubKeyCred[key])
+        }
+
+        return obj
+      }
+
+      return pubKeyCred
+    }
+
+    var base64decode = (str) => atob(str.replace(/[-]/g, "+").replace(/_/g, "/"))
+  </script>
+</head>
+
+<body>
+  <h1>Web Authn</h1>
+  <div class="row">
+    <div class="column column-20">
+      <input type="text" id="username" placeholder="Your username" />
+    </div>
+  </div>
+  <div class="row">
+    <div class="column column-20">
+      <input type="text" id="fullname" placeholder="Your name" />
+    </div>
+    <div class="column column-80"></div>
+  </div>
+  <div class="row">
+    <div class="column column-10">
+      <button id="register">Register</button>
+    </div>
+    <div class="column column-10">
+      <button id="login"">Login</button>
+    </div>
+    <div class=" column column-80"></div>
+  </div>
+  <script type="text/javascript">
+    var token;
+    // REGISTER
+    document.getElementById("register").onclick = function (e) {
+      e.preventDefault();
+      var form = {
+        username: document.getElementById("username").value,
+        fullname: document.getElementById("fullname").value,
+      }
+      fetch("/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(form)
+      })
+        .then((response) => response.json())
+        .then((body) => {
+          body.challenge.challenge = Uint8Array.from(base64decode(body.challenge.challenge), c => c.charCodeAt(0))
+          body.challenge.user.id = Uint8Array.from(base64decode(body.challenge.user.id), c => c.charCodeAt(0))
+          token = body.token;
+          return body
+        })
+        .then(({ challenge }) => {
+          return navigator.credentials.create({ publicKey: challenge })
+        })
+        .then((creds) => {
+          return publicKeyCredentialToJSON(creds)
+        })
+        .then((jsonCreds) => {
+          const body = JSON.stringify(jsonCreds)
+
+          return fetch("/register/response", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
+            body
+          })
+        })
+        .then((response) => response.json())
+        .then((body) => {
+          token = body.token;
+
+        })
+
+        .catch((err) => console.error(err))
+    };
+
+    // LOGIN
+    document.getElementById("login").onclick = function (e) {
+      e.preventDefault();
+      const form = {
+        username: document.getElementById("username").value,
+      }
+
+      fetch("/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(form)
+      })
+        .then(r => r.json())
+        .then(body => {
+          token = body.token;
+          const { assertion } = body;
+          assertion.challenge = Uint8Array.from(base64decode(assertion.challenge), c => c.charCodeAt(0))
+          assertion.allowCredentials = assertion.allowCredentials.map(({ id, ...rest }) => {
+            return {
+              id: Uint8Array.from(base64decode(id), c => c.charCodeAt(0)),
+              ...rest
+            }
+          })
+
+          return navigator.credentials.get({ publicKey: assertion })
+        })
+        .then((result) => {
+          return fetch("/login/response", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify(publicKeyCredentialToJSON(result))
+          })
+        })
+
+
+    }
+
+  </script>
+</body>
+
+</html>

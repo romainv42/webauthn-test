@@ -1,0 +1,39 @@
+version: "3.7"
+
+services:
+  database:
+    image: mongo
+    environment: 
+      - MONGO_INITDB_ROOT_USERNAME=${DB_ROOT}
+      - MONGO_INITDB_ROOT_PASSWORD=${DB_PASSWORD}
+      - MONGO_INITDB_DATABASE=${DB_NAME}
+    networks:
+      webauthn:
+        aliases: 
+          - ${DB_SERVER}
+  dbviewer:
+    image: mongo-express
+    ports:
+      - "8081:8081"
+    environment: 
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${DB_ROOT}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${DB_PASSWORD}
+      - ME_CONFIG_MONGODB_SERVER=${DB_SERVER}
+    networks:
+      webauthn:
+
+  app:
+    build:
+      context: ./src
+    ports:
+      - "3000:3000"
+    environment: 
+      - MONGO_USER=${DB_ROOT}
+      - MONGO_PASSWORD=${DB_PASSWORD}
+      - MONGO_DATABASE=${DB_NAME}
+      - MONGO_SERVER=${DB_SERVER}
+    networks:
+      webauthn:
+
+networks:
+  webauthn:
