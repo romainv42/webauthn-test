@@ -57,10 +57,9 @@
     <div class="column column-10">
       <button id="register">Register</button>
     </div>
-    <div class="column column-10">
-      <button id="login"">Login</button>
+    <div class=" column column-90">
+      <a href="login.html">Go login page</a>
     </div>
-    <div class=" column column-80"></div>
   </div>
   <script type="text/javascript">
     var token;
@@ -105,55 +104,11 @@
         })
         .then((response) => response.json())
         .then((body) => {
-          token = body.token;
-
+          if (body.status === "registered") alert("🤙 Yeah, you're registered")
         })
 
         .catch((err) => console.error(err))
     };
-
-    // LOGIN
-    document.getElementById("login").onclick = function (e) {
-      e.preventDefault();
-      const form = {
-        username: document.getElementById("username").value,
-      }
-
-      fetch("/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(form)
-      })
-        .then(r => r.json())
-        .then(body => {
-          token = body.token;
-          const { assertion } = body;
-          assertion.challenge = Uint8Array.from(base64decode(assertion.challenge), c => c.charCodeAt(0))
-          assertion.allowCredentials = assertion.allowCredentials.map(({ id, ...rest }) => {
-            return {
-              id: Uint8Array.from(base64decode(id), c => c.charCodeAt(0)),
-              ...rest
-            }
-          })
-
-          return navigator.credentials.get({ publicKey: assertion })
-        })
-        .then((result) => {
-          return fetch("/login/response", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify(publicKeyCredentialToJSON(result))
-          })
-        })
-
-
-    }
-
   </script>
 </body>
 
