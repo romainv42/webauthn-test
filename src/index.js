@@ -11,7 +11,7 @@ const {
     MONGO_PASSWORD,
     MONGO_DATABASE,
     MONGO_SERVER,
-} = process.env;
+} = process.env
 
 
 fastify.register(require("fastify-static"), {
@@ -30,7 +30,7 @@ fastify.register(jwt, {
         private: readFileSync(`${path.join(__dirname, "private")}/secret.key`, "utf8"),
         public: readFileSync(`${path.join(__dirname, "private")}/public.key`, "utf8"),
     },
-    sign: { algorithm: "RS256" }
+    sign: { algorithm: "ES256" }
 })
 
 const routes = require("./routes");
