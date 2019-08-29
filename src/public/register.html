@@ -1,48 +1,38 @@
 <html>
 
 <head>
-  <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
-  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.css">
-  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/milligram/1.3.0/milligram.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.3.0/milligram.css">
+  <link rel="stylesheet" href="style.css">
   <script src="lib.js" async></script>
 </head>
 
 <body>
   <h1>Web Authn</h1>
-  <div class="row">
-    <div class="column column-20">
-      <input type="text" id="username" placeholder="Your username" />
-    </div>
-  </div>
-  <div class="row">
-    <div class="column column-20">
-      <input type="text" id="fullname" placeholder="Your name" />
-    </div>
-    <div class="column column-80"></div>
-  </div>
-  <div class="row">
-    <div class="column column-10">
-      <button id="register">Register</button>
-    </div>
-    <div class="column column-90">
-      <a href="login.html">Go login page</a>
-    </div>
-  </div>
+  <form>
+      <label>username: <input type="text" name="username" placeholder="jeancloud" required></label>
+      <label>display name: <input type="text" name="fullname" placeholder="Jean-Cloud" required></label>
+      <div>
+        <button>Register</button>
+        <a href="login.html">Go login page</a>
+      </div>
+  </form>
   <script>
     var token
     // REGISTER
-    document.getElementById("register").onclick = function (e) {
+    document.forms[0].onsubmit = function (e) {
       e.preventDefault()
-      var form = {
-        username: document.getElementById("username").value,
-        fullname: document.getElementById("fullname").value,
-      }
+      var body = JSON.stringify({
+        username: this.username.value,
+        fullname: this.fullname.value
+      })
       fetch("/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(form)
+        body
       })
       .then((response) => response.json())
       .then((body) => {

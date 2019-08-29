@@ -1,0 +1,20 @@
+body {
+  margin: 1em;
+}
+
+form {
+  max-width: 30em;
+}
+
+form > div {
+  margin-top: 1.4em;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-evenly;
+  align-items: baseline;
+}
+
+form:invalid button {
+  filter: saturate(0) opacity(.5);
+  cursor: not-allowed;
+}
