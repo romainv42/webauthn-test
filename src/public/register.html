@@ -4,40 +4,7 @@
   <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
   <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.css">
   <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/milligram/1.3.0/milligram.css">
-  <script type="text/javascript">
-    /**
-     * Converts PublicKeyCredential into serialised JSON
-     * @param  {Object} pubKeyCred
-     * @return {Object}            - JSON encoded publicKeyCredential
-     */
-    var publicKeyCredentialToJSON = (pubKeyCred) => {
-      if (pubKeyCred instanceof Array) {
-        let arr = [];
-        for (let i of pubKeyCred)
-          arr.push(publicKeyCredentialToJSON(i));
-
-        return arr
-      }
-
-      if (pubKeyCred instanceof ArrayBuffer) {
-        return btoa(String.fromCharCode(...new Uint8Array(pubKeyCred)));
-      }
-
-      if (pubKeyCred instanceof Object) {
-        let obj = {};
-
-        for (let key in pubKeyCred) {
-          obj[key] = publicKeyCredentialToJSON(pubKeyCred[key])
-        }
-
-        return obj
-      }
-
-      return pubKeyCred
-    }
-
-    var base64decode = (str) => atob(str.replace(/[-]/g, "+").replace(/_/g, "/"))
-  </script>
+  <script src="lib.js" async></script>
 </head>
 
 <body>
@@ -57,15 +24,15 @@
     <div class="column column-10">
       <button id="register">Register</button>
     </div>
-    <div class=" column column-90">
+    <div class="column column-90">
       <a href="login.html">Go login page</a>
     </div>
   </div>
-  <script type="text/javascript">
-    var token;
+  <script>
+    var token
     // REGISTER
     document.getElementById("register").onclick = function (e) {
-      e.preventDefault();
+      e.preventDefault()
       var form = {
         username: document.getElementById("username").value,
         fullname: document.getElementById("fullname").value,
@@ -77,37 +44,37 @@
         },
         body: JSON.stringify(form)
       })
-        .then((response) => response.json())
-        .then((body) => {
-          body.challenge.challenge = Uint8Array.from(base64decode(body.challenge.challenge), c => c.charCodeAt(0))
-          body.challenge.user.id = Uint8Array.from(base64decode(body.challenge.user.id), c => c.charCodeAt(0))
-          token = body.token;
-          return body
-        })
-        .then(({ challenge }) => {
-          return navigator.credentials.create({ publicKey: challenge })
-        })
-        .then((creds) => {
-          return publicKeyCredentialToJSON(creds)
-        })
-        .then((jsonCreds) => {
-          const body = JSON.stringify(jsonCreds)
+      .then((response) => response.json())
+      .then((body) => {
+        body.challenge.challenge = Uint8Array.from(base64decode(body.challenge.challenge), c => c.charCodeAt(0))
+        body.challenge.user.id = Uint8Array.from(base64decode(body.challenge.user.id), c => c.charCodeAt(0))
+        token = body.token
+        return body
+      })
+      .then(({ challenge }) => {
+        return navigator.credentials.create({ publicKey: challenge })
+      })
+      .then((creds) => {
+        return publicKeyCredentialToJSON(creds)
+      })
+      .then((jsonCreds) => {
+        const body = JSON.stringify(jsonCreds)
 
-          return fetch("/register/response", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`
-            },
-            body
-          })
+        return fetch("/register/response", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body
         })
-        .then((response) => response.json())
-        .then((body) => {
-          if (body.status === "registered") alert("🤙 Yeah, you're registered")
-        })
+      })
+      .then((response) => response.json())
+      .then((body) => {
+	      if (body.status === "registered") alert("🤙 Yeah, you're registered")
+      })
 
-        .catch((err) => console.error(err))
+      .catch(console.error)
     };
   </script>
 </body>
