@@ -3,7 +3,7 @@
  * @param  {Object} pubKeyCred
  * @return JSON encoded publicKeyCredential
  */
-function publicKeyCredentialToJSON(pubKeyCred) {
+export function publicKeyCredentialToJSON(pubKeyCred) {
   if (Array.isArray(pubKeyCred))
     return pubKeyCred.map(publicKeyCredentialToJSON)
 
@@ -23,4 +23,18 @@ function publicKeyCredentialToJSON(pubKeyCred) {
   return pubKeyCred
 }
 
-var base64decode = (str) => atob(str.replace(/[-]/g, "+").replace(/_/g, "/"))
+const base64decode = str => atob(str.replace(/[-]/g, "+").replace(/_/g, "/"))
+
+export const base64toBuffer = str => Uint8Array.from(base64decode(str), c => c.charCodeAt(0))
+
+/** @param {string} url @param {string} [token] */
+export function fetchJSON(url, data, token) {
+  const body = JSON.stringify(data)
+  const headers = { "Content-Type": "application/json" }
+  if (token) headers.Authorization = `Bearer ${token}`
+  return fetch(url, { method: "POST", headers, body })
+  .then(r => {
+    if (r.ok) return r.json()
+    throw new Error(`HTTP error ${r.status}: ${r.statusText}`)
+  })
+}
