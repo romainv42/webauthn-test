@@ -181,22 +181,17 @@ let ASN1toPEM = (pkBuffer) => {
 
 /**
  * Parses authenticatorData buffer.
- * @param  {Buffer} buffer - authenticatorData buffer
- * @return {Object}        - parsed authenticatorData struct
+ * @param {Buffer} buffer - authenticatorData buffer
+ * @return parsed authenticatorData struct
  */
-let parseMakeCredAuthData = (buffer) => {
-    let rpIdHash = buffer.slice(0, 32); buffer = buffer.slice(32);
-    let flagsBuf = buffer.slice(0, 1); buffer = buffer.slice(1);
-    let flags = flagsBuf[0];
-    let counterBuf = buffer.slice(0, 4); buffer = buffer.slice(4);
-    let counter = counterBuf.readUInt32BE(0);
-    let aaguid = buffer.slice(0, 16); buffer = buffer.slice(16);
-    let credIDLenBuf = buffer.slice(0, 2); buffer = buffer.slice(2);
-    let credIDLen = credIDLenBuf.readUInt16BE(0);
-    let credID = buffer.slice(0, credIDLen); buffer = buffer.slice(credIDLen);
-    let COSEPublicKey = buffer;
+function parseMakeCredAuthData(buffer) {
+    let i = 37
+    const aaguid = buffer.slice(i, i+=16)
+    const credIDLen = buffer.slice(i, i+=2).readUInt16BE(0)
+    const credID = buffer.slice(i, i+=credIDLen)
+    const COSEPublicKey = buffer.slice(i)
 
-    return { rpIdHash, flagsBuf, flags, counter, counterBuf, aaguid, credID, COSEPublicKey }
+    return { ...parseGetAssertAuthData(buffer), aaguid, credID, COSEPublicKey }
 }
 
 let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
@@ -303,14 +298,15 @@ let findAuthr = (credID, authenticators) => {
 /**
  * Parses AuthenticatorData from GetAssertion response
  * @param  {Buffer} buffer - Auth data buffer
- * @return {Object}        - parsed authenticatorData struct
+ * @return parsed authenticatorData struct
  */
-let parseGetAssertAuthData = (buffer) => {
-    let rpIdHash = buffer.slice(0, 32); buffer = buffer.slice(32);
-    let flagsBuf = buffer.slice(0, 1); buffer = buffer.slice(1);
-    let flags = flagsBuf[0];
-    let counterBuf = buffer.slice(0, 4); buffer = buffer.slice(4);
-    let counter = counterBuf.readUInt32BE(0);
+function parseGetAssertAuthData(buffer) {
+    let i = 0
+    const rpIdHash = buffer.slice(i, i+=32)
+    const flagsBuf = buffer.slice(i, i+=1)
+    const flags = flagsBuf[0]
+    const counterBuf = buffer.slice(i, i+=4)
+    const counter = counterBuf.readUInt32BE(0)
 
     return { rpIdHash, flagsBuf, flags, counter, counterBuf }
 }
