@@ -1,6 +1,6 @@
 /**
  * Converts PublicKeyCredential into serialised JSON
- * @param  {Object} pubKeyCred
+ * @param {CredentialType} pubKeyCred
  * @return JSON encoded publicKeyCredential
  */
 export function publicKeyCredentialToJSON(pubKeyCred) {

@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "target": "esnext",
+    "moduleResolution": "node"
+  },
+  "typeAcquisition": {
+    "include": ["webappsec-credential-management"],
+    "enable": true
+  }
+}

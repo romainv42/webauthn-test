@@ -2,12 +2,12 @@ import { publicKeyCredentialToJSON, fetchJSON, base64toBuffer } from "./lib.js"
 
 let token
 
-document.forms[0].onsubmit = function (e) {
+document.forms[0].addEventListener("submit", function (e) {
   e.preventDefault()
   fetchJSON("/login", {
     username: this.username.value
   })
-  .then(body => {
+  .then((/** @type {{token, assertion: PublicKeyCredentialRequestOptions}} */ body) => {
     token = body.token
     const { assertion } = body
     assertion.challenge = base64toBuffer(assertion.challenge)
@@ -20,4 +20,4 @@ document.forms[0].onsubmit = function (e) {
   .then((body) => body.verified === true && alert("🤙 Yeah, you're logged in"))
 
   .catch(console.error)
-}
+})
