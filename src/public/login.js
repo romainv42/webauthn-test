@@ -1,4 +1,4 @@
-import { publicKeyCredentialToJSON, fetchJSON, base64toBuffer } from "./lib.js"
+import { fetchJSON, base64toBuffer } from "./lib.js"
 
 let token
 
@@ -16,7 +16,7 @@ document.forms[0].addEventListener("submit", function (e) {
     )
     return navigator.credentials.get({ publicKey: assertion })
   })
-  .then((credentials) => fetchJSON("/login/response", publicKeyCredentialToJSON(credentials), token))
+  .then((credentials) => fetchJSON("/login/response", credentials, token))
   .then((body) => body.verified === true && alert("🤙 Yeah, you're logged in"))
 
   .catch(console.error)

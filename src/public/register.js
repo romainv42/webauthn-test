@@ -1,4 +1,4 @@
-import { publicKeyCredentialToJSON, fetchJSON, base64toBuffer } from "./lib.js"
+import { fetchJSON, base64toBuffer } from "./lib.js"
 
 let token
 
@@ -16,8 +16,7 @@ document.forms[0].addEventListener("submit", function (e) {
     return challenge
   })
   .then((challenge) => navigator.credentials.create({ publicKey: challenge }))
-  .then((creds) => publicKeyCredentialToJSON(creds))
-  .then((jsonCreds) => fetchJSON("/register/response", jsonCreds, token))
+  .then((credentials) => fetchJSON("/register/response", credentials, token))
   .then((body) => body.status === "registered" && alert("🤙 Yeah, you're registered"))
 
   .catch(console.error)
