@@ -9,15 +9,24 @@ const {
 
 const origin = "http://localhost:3000";
 
+const userSchema = {
+  body: {
+    type: "object",
+    properties: {
+      username: { type: "string" },
+      fullname: { type: "string" }
+    },
+    required: ["username"]
+  }
+}
+
+/** @param {import('fastify').FastifyInstance} fastify */
 async function webauthnRoutes(fastify) {
 
   const { db, ObjectID } = fastify.mongo
 
-  fastify.post("/register", async (req, res) => {
-    if (!req.body || !req.body.username) {
-      return res.status(400).end();
-    }
-    const { username, fullname } = req.body;
+  fastify.post("/register", {schema: userSchema}, async (req) => {
+    const { username, fullname } = req.body
 
     const exists = await db.collection("users").findOne({ username, registered: true });
     if (exists) {
