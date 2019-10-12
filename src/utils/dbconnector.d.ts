@@ -20,7 +20,7 @@ export type User = {
 
 declare const dbConnector: fastify.Plugin<Server, IncomingMessage, ServerResponse,
   {url: string, dbname: string } & MongoClientOptions>
-export default dbConnector
+export = dbConnector
 
 declare module 'fastify' {
   interface FastifyInstance {

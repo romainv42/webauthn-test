@@ -26,9 +26,10 @@ fastify.register(require("fastify-static"), {
     prefix: "/public/", // optional: default "/"
 })
 
-fastify.register(require("./utils/dbconnector").default, {
+fastify.register(require("./utils/dbconnector"), {
     url: `mongodb://${MONGO_USER}:${MONGO_PASSWORD}@${MONGO_SERVER}:27017/`,
     dbname: MONGO_DATABASE,
+    useNewUrlParser: true
 })
 
 fastify.register(require("fastify-jwt"), {
