@@ -5,7 +5,6 @@
     "moduleResolution": "node"
   },
   "typeAcquisition": {
-    "include": ["webappsec-credential-management"],
     "enable": true
   }
 }
