@@ -1,6 +1,13 @@
 const { readFileSync } = require("fs")
 const path = require("path")
 
+// Overwrite the JSON stringifier of Buffers to use base64url.
+// That way, we can manipulate raw buffers until the last moment
+const { encode } = require('base64url').default
+Object.defineProperty(Buffer.prototype, "toJSON", {
+    value() { return encode(this) }
+})
+
 // Require the framework and instantiate it
 const fastify = require("fastify")({
     logger: true
@@ -19,13 +26,12 @@ fastify.register(require("fastify-static"), {
     prefix: "/public/", // optional: default "/"
 })
 
-fastify.register(require("./utils/dbconnector"), {
+fastify.register(require("./utils/dbconnector").default, {
     url: `mongodb://${MONGO_USER}:${MONGO_PASSWORD}@${MONGO_SERVER}:27017/`,
     dbname: MONGO_DATABASE,
 })
 
-const jwt = require("fastify-jwt")
-fastify.register(jwt, {
+fastify.register(require("fastify-jwt"), {
     secret: {
         private: readFileSync(`${path.join(__dirname, "private")}/secret.key`, "utf8"),
         public: readFileSync(`${path.join(__dirname, "private")}/public.key`, "utf8"),
@@ -33,14 +39,12 @@ fastify.register(jwt, {
     sign: { algorithm: "ES256" }
 })
 
-const routes = require("./routes");
-fastify.register(routes);
+fastify.register(require("./routes"))
 
 // Run the server!
-fastify.listen(3000, "0.0.0.0", function (err, address) {
-    if (err) {
-        fastify.log.error(err)
-        process.exit(1)
-    }
-    fastify.log.info(`server listening on ${address}`)
+fastify.listen(3000, "0.0.0.0")
+.then(address => fastify.log.info(`server listening on ${address}`))
+.catch(err => {
+    fastify.log.error(err)
+    process.exit(1)
 })
