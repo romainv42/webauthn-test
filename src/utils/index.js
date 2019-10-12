@@ -1,112 +1,91 @@
 /**
- * SOURCE: https://raw.githubusercontent.com/fido-alliance/webauthn-demo/master/utils.js
+ * based on https://raw.githubusercontent.com/fido-alliance/webauthn-demo/master/utils.js
  */
 
-const crypto = require('crypto');
-const base64url = require('base64url');
-const cbor = require('cbor');
-const { Certificate } = require('@fidm/x509');
-const iso_3166_1 = require('iso-3166-1');
+const crypto = require('crypto')
+const base64url = require('base64url').default
+const cbor = require('cbor')
+const { Certificate } = require('@fidm/x509')
+const iso_3166_1 = require('iso-3166-1')
 
-/**
- * U2F Presence constant
- */
-let U2F_USER_PRESENTED = 0x01;
+/** U2F Presence constant */
+const U2F_USER_PRESENTED = 0x01
+
+/** @type {AuthenticatorTransport[]} */
+const transports = ['usb', 'nfc', 'ble']
+/** @type {'public-key'} */
+const publicKeyType = 'public-key'
+
+/** @typedef {import('./dbconnector').Authenticator} Authenticator */
 
 /**
  * Takes signature, data and PEM public key and tries to verify signature
- * @param  {Buffer} signature
- * @param  {Buffer} data
- * @param  {String} publicKey - PEM encoded public key
- * @return {Boolean}
+ * @param {Buffer} signature
+ * @param {Buffer} data
+ * @param {String} publicKey - PEM encoded public key
  */
-let verifySignature = (signature, data, publicKey) => {
-    return crypto.createVerify('SHA256')
-        .update(data)
-        .verify(publicKey, signature);
-}
-
-
-/**
- * Returns base64url encoded buffer of the given length
- * @param  {Number} len - length of the buffer
- * @return {String}     - base64url random buffer
- */
-let randomBase64URLBuffer = (len) => {
-    len = len || 32;
-
-    let buff = crypto.randomBytes(len);
-
-    return base64url(buff);
+function verifySignature(signature, data, publicKey) {
+    return crypto.createVerify('SHA256').update(data).verify(publicKey, signature)
 }
 
 /**
  * Generates makeCredentials request
- * @param  {String} username       - username
- * @param  {String} displayName    - user's personal display name
- * @param  {String} id             - user's base64url encoded id
- * @return {MakePublicKeyCredentialOptions} - server encoded make credentials request
+ * @param {String} username       - username
+ * @param {String} displayName    - user's personal display name
+ * @param {Buffer} id             - user's id
+ * @return {PublicKeyCredentialCreationOptions} - server encoded make credentials request
  */
-let generateServerMakeCredRequest = (username, displayName, id) => {
+function generateServerMakeCredRequest(username, displayName, id) {
     return {
-        challenge: randomBase64URLBuffer(32),
+        challenge: crypto.randomBytes(32),
 
         rp: {
             name: "WebAuthn Demo"
         },
         user: {
-            id: id,
+            id,
             name: username,
             displayName: displayName
         },
         attestation: 'direct',
         pubKeyCredParams: [
-            {
-                type: "public-key", alg: -7 // "ES256" IANA COSE Algorithms registry
-            },
-            {
-                type: "public-key", alg: -257 // "RS256" IANA COSE Algorithms registry
-            }
+            {type: "public-key", alg: -7}, // "ES256" IANA COSE Algorithms registry
+            {type: "public-key", alg: -257} // "RSA256" IANA COSE Algorithms registry
         ]
     }
 }
 
 /**
  * Generates getAssertion request
- * @param  {Array} authenticators              - list of registered authenticators
+ * @param  {Authenticator[]} authenticators - list of registered authenticators
  * @return {PublicKeyCredentialRequestOptions} - server encoded get assertion request
  */
-let generateServerGetAssertion = (authenticators) => {
-    let allowCredentials = [];
-    for (let authr of authenticators) {
-        allowCredentials.push({
-            type: 'public-key',
-            id: authr.credID,
-            transports: ['usb', 'nfc', 'ble']
-        })
-    }
+function generateServerGetAssertion(authenticators) {
+    const allowCredentials = authenticators.map(authr => ({
+        type: publicKeyType,
+        id: base64url.toBuffer(authr.credID),
+        transports
+    }))
     return {
-        challenge: randomBase64URLBuffer(32),
-        allowCredentials: allowCredentials
+        challenge: crypto.randomBytes(32),
+        allowCredentials
     }
 }
 
 
 /**
  * Returns SHA-256 digest of the given data.
- * @param  {Buffer} data - data to hash
- * @return {Buffer}      - the hash
+ * @param  {string} data - base64url-encoded data to hash
+ * @return - the hash
  */
-let hash = (data) => {
-    return crypto.createHash('SHA256').update(data).digest();
-}
+const hash = data => crypto.createHash('SHA256').update(base64url.toBuffer(data)).digest()
 
 /**
  * Takes COSE encoded public key and converts it to RAW PKCS ECDHA key
  * @param  {Buffer} COSEPublicKey - COSE encoded public key
- * @return {Buffer}               - RAW PKCS encoded public key
+ * @return - RAW PKCS encoded public key
  */
-let COSEECDHAtoPKCS = (COSEPublicKey) => {
+function COSEECDHAtoPKCS(COSEPublicKey) {
     /* 
        +------+-------+-------+---------+----------------------------------+
        | name | key   | label | type    | description                      |
@@ -124,59 +103,44 @@ let COSEECDHAtoPKCS = (COSEPublicKey) => {
        +------+-------+-------+---------+----------------------------------+
     */
 
-    let coseStruct = cbor.decodeAllSync(COSEPublicKey)[0];
-    let tag = Buffer.from([0x04]);
-    let x = coseStruct.get(-2);
-    let y = coseStruct.get(-3);
+    const coseStruct = cbor.decodeAllSync(COSEPublicKey)[0]
+    const tag = Buffer.from([0x04])
+    const x = coseStruct.get(-2)
+    const y = coseStruct.get(-3)
 
     return Buffer.concat([tag, x, y])
 }
 
+/* metadata prefix for a raw P-256 EC key:
+SEQUENCE {
+    SEQUENCE {
+        OBJECTIDENTIFIER 1.2.840.10045.2.1 (ecPublicKey)
+        OBJECTIDENTIFIER 1.2.840.10045.3.1.7 (P-256)
+    }
+} */
+const PKPrefix = Buffer.from("3059301306072a8648ce3d020106082a8648ce3d030107034200", "hex")
+
 /**
  * Convert binary certificate or public key to an OpenSSL-compatible PEM text format.
- * @param  {Buffer} buffer - Cert or PubKey buffer
- * @return {String}             - PEM
+ * @param  {Buffer} pkBuffer - Cert or PubKey buffer
+ * @return PEM
  */
-let ASN1toPEM = (pkBuffer) => {
-    if (!Buffer.isBuffer(pkBuffer))
-        throw new Error("ASN1toPEM: pkBuffer must be Buffer.")
+function ASN1toPEM(pkBuffer) {
+    if (!Buffer.isBuffer(pkBuffer)) throw new TypeError("ASN1toPEM: pkBuffer must be Buffer.")
 
-    let type;
+    let type
     if (pkBuffer.length == 65 && pkBuffer[0] == 0x04) {
-        /*
-            If needed, we encode rawpublic key to ASN structure, adding metadata:
-            SEQUENCE {
-              SEQUENCE {
-                 OBJECTIDENTIFIER 1.2.840.10045.2.1 (ecPublicKey)
-                 OBJECTIDENTIFIER 1.2.840.10045.3.1.7 (P-256)
-              }
-              BITSTRING <raw public key>
-            }
-            Luckily, to do that, we just need to prefix it with constant 26 bytes (metadata is constant).
-        */
-
-        pkBuffer = Buffer.concat([
-            new Buffer.from("3059301306072a8648ce3d020106082a8648ce3d030107034200", "hex"),
-            pkBuffer
-        ]);
-
-        type = 'PUBLIC KEY';
+        pkBuffer = Buffer.concat([PKPrefix, pkBuffer])
+        type = 'PUBLIC KEY'
     } else {
-        type = 'CERTIFICATE';
+        type = 'CERTIFICATE'
     }
 
-    let b64cert = pkBuffer.toString('base64');
-
-    let PEMKey = '';
-    for (let i = 0; i < Math.ceil(b64cert.length / 64); i++) {
-        let start = 64 * i;
-
-        PEMKey += b64cert.substr(start, 64) + '\n';
-    }
-
-    PEMKey = `-----BEGIN ${type}-----\n` + PEMKey + `-----END ${type}-----\n`;
-
-    return PEMKey
+    return [
+        `-----BEGIN ${type}-----`,
+        ...pkBuffer.toString('base64').match(/.{1,64}/g),
+        `-----END ${type}-----\n`
+    ].join('\n')
 }
 
 /**
@@ -194,24 +158,25 @@ function parseMakeCredAuthData(buffer) {
     return { ...parseGetAssertAuthData(buffer), aaguid, credID, COSEPublicKey }
 }
 
-let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
-    let attestationBuffer = base64url.toBuffer(webAuthnResponse.response.attestationObject);
-    let ctapMakeCredResp = cbor.decodeAllSync(attestationBuffer)[0];
+function verifyAuthenticatorAttestationResponse(webAuthnResponse) {
+    const attestationBuffer = base64url.toBuffer(webAuthnResponse.attestationObject)
+    const ctapMakeCredResp = cbor.decodeAllSync(attestationBuffer)[0]
 
-    let response = { 'verified': false };
+    /** @type {{verified: boolean, authrInfo?: Authenticator}} */
+    const response = { verified: false }
     if (ctapMakeCredResp.fmt === 'fido-u2f') {
-        let authrDataStruct = parseMakeCredAuthData(ctapMakeCredResp.authData);
+        const authrDataStruct = parseMakeCredAuthData(ctapMakeCredResp.authData)
 
         if (!(authrDataStruct.flags & U2F_USER_PRESENTED))
-            throw new Error('User was NOT presented durring authentication!');
+            throw new Error('User was NOT presented during authentication!')
 
-        let clientDataHash = hash(base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
-        let reservedByte = Buffer.from([0x00]);
-        let publicKey = COSEECDHAtoPKCS(authrDataStruct.COSEPublicKey)
-        let signatureBase = Buffer.concat([reservedByte, authrDataStruct.rpIdHash, clientDataHash, authrDataStruct.credID, publicKey]);
+        const clientDataHash = hash(webAuthnResponse.clientDataJSON)
+        const reservedByte = Buffer.alloc(1)
+        const publicKey = COSEECDHAtoPKCS(authrDataStruct.COSEPublicKey)
+        const signatureBase = Buffer.concat([reservedByte, authrDataStruct.rpIdHash, clientDataHash, authrDataStruct.credID, publicKey])
 
-        let PEMCertificate = ASN1toPEM(ctapMakeCredResp.attStmt.x5c[0]);
-        let signature = ctapMakeCredResp.attStmt.sig;
+        const PEMCertificate = ASN1toPEM(ctapMakeCredResp.attStmt.x5c[0])
+        const signature = ctapMakeCredResp.attStmt.sig
 
         response.verified = verifySignature(signature, signatureBase, PEMCertificate)
 
@@ -224,22 +189,22 @@ let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
             }
         }
     } else if (ctapMakeCredResp.fmt === 'packed' && ctapMakeCredResp.attStmt.hasOwnProperty('x5c')) {
-        let authrDataStruct = parseMakeCredAuthData(ctapMakeCredResp.authData);
+        const authrDataStruct = parseMakeCredAuthData(ctapMakeCredResp.authData)
 
         if (!(authrDataStruct.flags & U2F_USER_PRESENTED))
-            throw new Error('User was NOT presented durring authentication!');
+            throw new Error('User was NOT presented during authentication!')
 
-        let clientDataHash = hash(base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
-        let publicKey = COSEECDHAtoPKCS(authrDataStruct.COSEPublicKey)
-        let signatureBase = Buffer.concat([ctapMakeCredResp.authData, clientDataHash]);
+        const clientDataHash = hash(webAuthnResponse.clientDataJSON)
+        const publicKey = COSEECDHAtoPKCS(authrDataStruct.COSEPublicKey)
+        const signatureBase = Buffer.concat([ctapMakeCredResp.authData, clientDataHash])
 
-        let PEMCertificate = ASN1toPEM(ctapMakeCredResp.attStmt.x5c[0]);
-        let signature = ctapMakeCredResp.attStmt.sig;
+        const PEMCertificate = ASN1toPEM(ctapMakeCredResp.attStmt.x5c[0])
+        const signature = ctapMakeCredResp.attStmt.sig
 
-        let pem = Certificate.fromPEM(PEMCertificate);
+        const pem = Certificate.fromPEM(Buffer.from(PEMCertificate))
 
         // Getting requirements from https://www.w3.org/TR/webauthn/#packed-attestation
-        let aaguid_ext = pem.getExtension('1.3.6.1.4.1.45724.1.1.4')
+        const aaguid_ext = pem.getExtension('1.3.6.1.4.1.45724.1.1.4')
 
         response.verified = // Verify that sig is a valid signature over the concatenation of authenticatorData
             // and clientDataHash using the attestation public key in attestnCert with the algorithm specified in alg.
@@ -255,6 +220,7 @@ let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
             // A UTF8String of the vendor’s choosing
             pem.subject.commonName &&
             // The Basic Constraints extension MUST have the CA component set to false
+            // @ts-ignore
             !pem.extensions.isCA &&
             // If attestnCert contains an extension with OID 1.3.6.1.4.1.45724.1.1.4 (id-fido-gen-ce-aaguid)
             // verify that the value of this extension matches the aaguid in authenticatorData.
@@ -274,7 +240,7 @@ let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
             }
         }
     } else {
-        throw new Error('Unsupported attestation format! ' + ctapMakeCredResp.fmt);
+        throw new Error('Unsupported attestation format! ' + ctapMakeCredResp.fmt)
     }
 
     return response
@@ -283,16 +249,12 @@ let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
 
 /**
  * Takes an array of registered authenticators and find one specified by credID
- * @param  {String} credID        - base64url encoded credential
- * @param  {Array} authenticators - list of authenticators
- * @return {Object}               - found authenticator
+ * @param  {String} credID - base64url encoded credential
+ * @param  {Authenticator[]} authenticators - list of authenticators
+ * @return - found authenticator
  */
-let findAuthr = (credID, authenticators) => {
-    for (let authr of authenticators) {
-        if (authr.credID === credID)
-            return authr
-    }
-
+function findAuthr(credID, authenticators) {
+    for (const authr of authenticators) if (authr.credID === credID) return authr
     throw new Error(`Unknown authenticator with credID ${credID}!`)
 }
 
@@ -312,36 +274,35 @@ function parseGetAssertAuthData(buffer) {
     return { rpIdHash, flagsBuf, flags, counter, counterBuf }
 }
 
-let verifyAuthenticatorAssertionResponse = (webAuthnResponse, authenticators) => {
-    let authr = findAuthr(webAuthnResponse.id, authenticators);
-    let authenticatorData = base64url.toBuffer(webAuthnResponse.response.authenticatorData);
+/**
+ * @param {string} authrId
+ * @param {Authenticator[]} authenticators */
+function verifyAuthenticatorAssertionResponse(webAuthnResponse, authrId, authenticators) {
+    const authr = findAuthr(authrId, authenticators)
 
-    let response = { 'verified': false };
     if (authr.fmt === 'fido-u2f') {
-        let authrDataStruct = parseGetAssertAuthData(authenticatorData);
+        const authrDataStruct = parseGetAssertAuthData(base64url.toBuffer(webAuthnResponse.authenticatorData))
 
         if (!(authrDataStruct.flags & U2F_USER_PRESENTED))
-            throw new Error('User was NOT presented durring authentication!');
+            throw new Error('User was NOT presented during authentication!')
 
-        let clientDataHash = hash(base64url.toBuffer(webAuthnResponse.response.clientDataJSON))
-        let signatureBase = Buffer.concat([authrDataStruct.rpIdHash, authrDataStruct.flagsBuf, authrDataStruct.counterBuf, clientDataHash]);
+        const clientDataHash = hash(webAuthnResponse.clientDataJSON)
+        const signatureBase = Buffer.concat([authrDataStruct.rpIdHash, authrDataStruct.flagsBuf, authrDataStruct.counterBuf, clientDataHash])
 
-        let publicKey = ASN1toPEM(base64url.toBuffer(authr.publicKey));
-        let signature = base64url.toBuffer(webAuthnResponse.response.signature);
+        const publicKey = ASN1toPEM(base64url.toBuffer(authr.publicKey))
+        const signature = base64url.toBuffer(webAuthnResponse.signature)
 
-        response.verified = verifySignature(signature, signatureBase, publicKey)
-
-        if (response.verified) {
+        if (verifySignature(signature, signatureBase, publicKey)) {
             if (authrDataStruct.counter <= authr.counter) throw new Error('Authr counter did not increase!')
             authr.counter = authrDataStruct.counter
+            return true
         }
     }
 
-    return response
+    return false
 }
 
 module.exports = {
-    randomBase64URLBuffer,
     generateServerMakeCredRequest,
     generateServerGetAssertion,
     verifyAuthenticatorAttestationResponse,
