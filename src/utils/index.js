@@ -259,10 +259,11 @@ let verifyAuthenticatorAttestationResponse = (webAuthnResponse) => {
             // If attestnCert contains an extension with OID 1.3.6.1.4.1.45724.1.1.4 (id-fido-gen-ce-aaguid)
             // verify that the value of this extension matches the aaguid in authenticatorData.
             // The extension MUST NOT be marked as critical.
-            (aaguid_ext != null ?
-                (authrDataStruct.hasOwnProperty('aaguid') ?
-                    !aaguid_ext.critical && aaguid_ext.value.slice(2).equals(authrDataStruct.aaguid) : false)
-                : true);
+            (aaguid_ext == null ||
+              authrDataStruct.hasOwnProperty('aaguid')
+              && !aaguid_ext.critical
+              && crypto.timingSafeEqual(aaguid_ext.value.slice(2), authrDataStruct.aaguid)
+            )
 
         if (response.verified) {
             response.authrInfo = {

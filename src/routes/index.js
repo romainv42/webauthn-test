@@ -5,7 +5,9 @@ const {
   verifyAuthenticatorAssertionResponse,
   generateServerMakeCredRequest,
   generateServerGetAssertion,
-} = require("../utils");
+} = require("../utils")
+const base64url = require('base64url').default
+const { timingSafeEqual } = require("crypto")
 
 const origin = "http://localhost:3000";
 
@@ -56,9 +58,8 @@ async function webauthnRoutes(fastify) {
     const clientData = JSON.parse(Buffer.from(webauthnResponse.response.clientDataJSON, "base64").toString("utf8"))
     clientData.challenge = clientData.challenge.replace(/_/g, "/").replace(/-/g, "+")
 
-    if (Buffer.from(clientData.challenge, "base64").compare(Buffer.from(token.challenge, "base64"))) {
-      throw new Error("Bad challenge")
-    }
+    if (!timingSafeEqual(base64url.toBuffer(clientData.challenge), base64url.toBuffer(token.challenge)))
+      throw new HTTPError("Bad challenge", 401)
 
     if (clientData.origin !== origin) {
       throw new Error("Bad origin")
