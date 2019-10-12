@@ -121,3 +121,15 @@ async function webauthnRoutes(fastify) {
 }
 
 module.exports = webauthnRoutes;
+
+class HTTPError extends Error {
+  constructor(message, status = 500) {
+    super(message)
+    this.statusCode = status
+  }
+}
+class NotFoundError extends HTTPError {
+  constructor(message) {
+    super(message, 404)
+  }
+}
