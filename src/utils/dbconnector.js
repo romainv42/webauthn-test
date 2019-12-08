@@ -6,15 +6,11 @@ async function dbConnector(fastify, { url, dbname, ...options }) {
 
   const db = co.db(dbname)
 
-  const collectionExists = await db.collection("users")
+  const users = await db.collection("users") || await db.createCollection("users")
 
-  if (!collectionExists) {
-    await db.createCollection("users")
-  }
-
-  fastify.decorate('mongo', { db, ObjectID })
+  fastify.decorate('mongo', { users, ObjectID })
 }
 
 // Wrapping a plugin function with fastify-plugin exposes the decorators,
 // hooks, and middlewares declared inside the plugin to the parent scope.
-module.exports = fastifyPlugin(dbConnector)
+module.exports = fastifyPlugin(dbConnector, { name: "userDb" })

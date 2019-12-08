@@ -1,114 +1,125 @@
-const crypto = require("crypto");
-
+const base64url = require("base64url").default
+const { timingSafeEqual } = require("crypto")
 const {
   verifyAuthenticatorAttestationResponse,
   verifyAuthenticatorAssertionResponse,
   generateServerMakeCredRequest,
   generateServerGetAssertion,
-} = require("../utils");
+} = require("../utils")
 
-const origin = "http://localhost:3000";
+const origin = "http://localhost:3000"
 
+const userSchema = {
+  body: {
+    type: "object",
+    properties: {
+      username: { type: "string" },
+      fullname: { type: "string" }
+    },
+    required: ["username"]
+  }
+}
+
+/** @typedef {{challenge: string, user: {id: string}}} Token */
+
+/** @param {import('fastify').FastifyInstance} fastify */
 async function webauthnRoutes(fastify) {
 
-  const { db, ObjectID } = fastify.mongo
+  const { users, ObjectID } = fastify.mongo
 
-  fastify.post("/register", async (req, res) => {
-    if (!req.body || !req.body.username) {
-      return res.status(400).end();
-    }
-    const { username, fullname } = req.body;
+  fastify.post("/register", {schema: userSchema}, async (req) => {
+    const { username, fullname } = req.body
 
-    const exists = await db.collection("users").findOne({ username, registered: true });
-    if (exists) {
-      return res.status(409).send("user already exists");
-    }
+    const exists = await users.findOne({ username, registered: true })
+    if (exists) throw new HTTPError("user already exists", 409)
 
-    const newUser = await db.collection("users").insertOne({
+    const newUser = await users.insertOne({
       username,
       fullname,
       registered: false,
       authenticators: [],
       registrationStart: Date.now
     })
+    // I can't find why the MongoDB devs don't expose the id property in the ObjectId typings,
+    // but this is the internal buffer used by the ObjectId so it lets us avoid unnecessary string conversion
+    // @ts-ignore
+    const userId = newUser.insertedId.id
 
-    const challenge = generateServerMakeCredRequest(username, fullname, newUser.insertedId.toString());
+    const challenge = generateServerMakeCredRequest(username, fullname, userId)
 
-    const token = fastify.jwt.sign(challenge);
+    const token = fastify.jwt.sign(challenge)
     return {
       token,
       challenge,
     }
-  });
+  })
 
-  fastify.post("/register/response", async (req, res) => {
-    const token = await req.jwtVerify()
-    const webauthnResponse = req.body;
-    const clientData = JSON.parse(Buffer.from(webauthnResponse.response.clientDataJSON, "base64").toString("utf8"))
-    clientData.challenge = clientData.challenge.replace(/_/g, "/").replace(/-/g, "+")
+  fastify.post("/register/response", async (req) => {
+    /** @type {Token} */ const token = await req.jwtVerify()
+    const webauthnResponse = req.body.response
+    const clientData = JSON.parse(base64url.decode(webauthnResponse.clientDataJSON))
 
-    if (Buffer.from(clientData.challenge, "base64").compare(Buffer.from(token.challenge, "base64"))) {
-      throw new Error("Bad challenge")
-    }
+    if (!timingSafeEqual(base64url.toBuffer(clientData.challenge), base64url.toBuffer(token.challenge)))
+      throw new HTTPError("Bad challenge", 401)
 
-    if (clientData.origin !== origin) {
-      throw new Error("Bad origin")
-    }
+    if (clientData.origin !== origin) throw new HTTPError("Bad origin", 403)
 
-    const result = verifyAuthenticatorAttestationResponse(webauthnResponse)
+    const { verified, authrInfo } = verifyAuthenticatorAttestationResponse(webauthnResponse)
 
-    if (!result.verified) {
-      throw "something wrong happened"
-    }
+    if (!verified) throw new Error("something wrong happened")
 
-    const user = await db.collection("users").findOne({ _id: ObjectID(token.user.id) })
+    // @ts-ignore
+    const user = await users.findOne({ _id: new ObjectID(base64url.toBuffer(token.user.id)) })
 
-    if (!user) {
-      throw "User doesn't exists in DB"
-    }
+    if (!user) throw new NotFoundError("User doesn't exists in DB")
 
-    user.registered = true;
-    user.authenticators.push(result.authrInfo)
+    user.registered = true
+    user.authenticators.push(authrInfo)
 
-    await db.collection("users").save(user);
+    await users.save(user)
 
-    return { status: "registered" };
-  });
+    return { status: "registered" }
+  })
 
-  fastify.post("/login", async (req, res) => {
-    if (!req.body || !req.body.username) {
-      return res.status(400).end();
-    }
+  fastify.post("/login", {schema: userSchema}, async (req) => {
+    const { username } = req.body
 
-    const { username } = req.body;
-    const user = await db.collection("users").findOne({ username, registered: true });
-
-    if (!user) {
-      throw "User doesn't exists"
-    }
+    const user = await users.findOne({ username, registered: true })
+    if (!user) throw new NotFoundError("User doesn't exists")
 
     const { authenticators, ...userInfo } = user
 
     const assertion = generateServerGetAssertion(authenticators)
-    assertion.status = "ok"
 
-    const token = fastify.jwt.sign({ assertion, user: userInfo });
+    const token = fastify.jwt.sign({ assertion, user: userInfo })
 
     return { token, assertion }
-  });
+  })
 
-  fastify.post("/login/response", async (req, res) => {
-    const token = await req.jwtVerify()
-    const webauthnResponse = req.body;
+  fastify.post("/login/response", async (req) => {
+    /** @type {Token} */ const token = await req.jwtVerify()
+    const { response, id } = req.body
 
-    const user = await db.collection("users").findOne({ _id: ObjectID(token.user._id), registered: true })
+    // @ts-ignore
+    const user = await users.findOne({ _id: new ObjectID(base64url.toBuffer(token.user.id)), registered: true })
+    if (!user) throw new NotFoundError("User doesn't exists in DB")
 
-    if (!user) {
-      throw "User doesn't exists in DB"
-    }
-
-    return verifyAuthenticatorAssertionResponse(webauthnResponse, user.authenticators)
-  });
+    const verified = await verifyAuthenticatorAssertionResponse(response, id, user.authenticators)
+    if (verified) users.save(user) // the verification method mutated the user's authenticator in-place
+    return { verified }
+  })
 }
 
-module.exports = webauthnRoutes;
+module.exports = webauthnRoutes
+
+class HTTPError extends Error {
+  constructor(message, status = 500) {
+    super(message)
+    this.statusCode = status
+  }
+}
+class NotFoundError extends HTTPError {
+  constructor(message) {
+    super(message, 404)
+  }
+}
