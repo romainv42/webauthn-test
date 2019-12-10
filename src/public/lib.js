@@ -7,15 +7,29 @@ function encodeBuffers(_key, value) {
   return value
 }
 
+function parseResponse(response) {
+  if (response instanceof AuthenticatorAssertionResponse) {
+    return {
+      authenticatorData: response.authenticatorData,
+      clientDataJSON: response.clientDataJSON,
+      signature: response.signature
+    }
+  }
+  if (response instanceof AuthenticatorAttestationResponse) {
+    return {
+      attestationObject: response.attestationObject,
+      clientDataJSON: response.clientDataJSON
+    }
+  }
+  return response  
+}
+
 function parsePublicKeyCredential(data) {
   if (data instanceof PublicKeyCredential) {
     return {
       id: data.id,
       rawId: data.rawId,
-      response: {
-        attestationObject: data.response.attestationObject,
-        clientDataJSON: data.response.clientDataJSON
-      },
+      response: parseResponse(data.response),
       type: data.type,
     }  
   }
