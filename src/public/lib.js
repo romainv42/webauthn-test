@@ -12,7 +12,10 @@ function parsePublicKeyCredential(data) {
     return {
       id: data.id,
       rawId: data.rawId,
-      response: data.response,
+      response: {
+        attestationObject: data.response.attestationObject,
+        clientDataJSON: data.response.clientDataJSON
+      },
       type: data.type,
     }  
   }
